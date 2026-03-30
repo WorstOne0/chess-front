@@ -4,6 +4,7 @@ services:
   app:
     build: .
     container_name: chess
+    restart: unless-stopped
     environment:
       - VIRTUAL_HOST=chess.kuuhaku.dev
     networks:
