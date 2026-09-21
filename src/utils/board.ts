@@ -1,5 +1,5 @@
-import { Board, PieceType, Position } from "./chess_types";
-import { calculatePseudoLegalMoves } from "./moves";
+import { Board, GameResult, Move, PieceType, Position, UndoRecord } from "./chess_types";
+import { calculateLegalMoves, generateAllLegalMoves } from "./moves";
 
 const boardNotation = [
   ["a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8"],
@@ -12,183 +12,191 @@ const boardNotation = [
   ["a1", "b1", "c1", "d1", "e1", "f1", "g1", "h1"],
 ];
 
+const typeByFen: Record<string, string> = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen", k: "king" };
+const fenByType: Record<string, string> = { pawn: "p", knight: "n", bishop: "b", rook: "r", queen: "q", king: "k" };
+const notationByType: Record<string, string> = { pawn: "", knight: "N", bishop: "B", rook: "R", queen: "Q", king: "K" };
+
+// Corner square -> the castling right it carries, revoked when a rook leaves or is captured there
+const castlingRightBySquare: Record<string, string> = { "7,7": "K", "7,0": "Q", "0,7": "k", "0,0": "q" };
+
+const emptySquare = (row: number, column: number): PieceType => ({
+  type: "empty",
+  position: { row, column },
+  color: null,
+  settings: {},
+  notation: "",
+  fen: null,
+});
+
+const createPiece = (type: string, color: string, row: number, column: number): PieceType => ({
+  type,
+  position: { row, column },
+  color,
+  settings: {},
+  notation: notationByType[type],
+  fen: color === "white" ? fenByType[type].toUpperCase() : fenByType[type],
+});
+
+const findKing = (board: Board, color: string) => {
+  for (const row of board.board) {
+    for (const piece of row) {
+      if (piece.type === "king" && piece.color === color) return piece;
+    }
+  }
+
+  return undefined;
+};
+
+const squaresBetween = (from: Position, to: Position): Position[] => {
+  const dr = to.row - from.row;
+  const dc = to.column - from.column;
+  if (dr !== 0 && dc !== 0 && Math.abs(dr) !== Math.abs(dc)) return [];
+
+  const stepRow = dr === 0 ? 0 : dr / Math.abs(dr);
+  const stepCol = dc === 0 ? 0 : dc / Math.abs(dc);
+
+  const result: Position[] = [];
+  let r = from.row + stepRow;
+  let c = from.column + stepCol;
+
+  while (r !== to.row || c !== to.column) {
+    result.push({ row: r, column: c });
+    r += stepRow;
+    c += stepCol;
+  }
+
+  return result;
+};
+
 const buildBoard = ({ fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" }: { fen?: string }) => {
-  const startPosition = fen.split(" ")[0];
-  const currentPlayerTurn = fen.split(" ")[1];
-  const castlingRights = fen.split(" ")[2];
-  const enPassantTarget = fen.split(" ")[3];
-  const halfMoveClock = parseInt(fen.split(" ")[4]);
-  const fullMoveNumber = parseInt(fen.split(" ")[5]);
+  const [startPosition, currentPlayerTurn, castlingRights, enPassantTarget, halfMoveClock, fullMoveNumber] = fen.split(" ");
 
-  const initialBoard = startPosition.split("/").map((row) => {
-    const rowAfter = row.split("");
+  const board: PieceType[][] = [];
 
-    for (const column of rowAfter) {
-      if (parseInt(column) > 0) rowAfter.splice(rowAfter.indexOf(column), 1, ...Array(parseInt(column)).fill(null));
+  startPosition.split("/").forEach((rowFen, rowIndex) => {
+    const row: PieceType[] = [];
+
+    for (const symbol of rowFen) {
+      const emptyCount = parseInt(symbol);
+
+      if (emptyCount > 0) {
+        for (let i = 0; i < emptyCount; i++) row.push(emptySquare(rowIndex, row.length));
+        continue;
+      }
+
+      const color = symbol === symbol.toUpperCase() ? "white" : "black";
+      row.push(createPiece(typeByFen[symbol.toLowerCase()], color, rowIndex, row.length));
     }
 
-    return rowAfter;
+    board.push(row);
   });
 
-  const board: PieceType[][] = [[], [], [], [], [], [], [], []];
-
-  initialBoard.map((row, rowIndex) => {
-    row.map((piece, columnIndex) => {
-      if (piece === "p" || piece === "P") {
-        board[rowIndex].push({
-          type: "pawn",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "P" ? "white" : "black",
-          settings: {},
-          notation: "",
-          fen: piece,
-        });
-      }
-
-      if (piece === "n" || piece === "N") {
-        board[rowIndex].push({
-          type: "knight",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "N" ? "white" : "black",
-          settings: {},
-          notation: "N",
-          fen: piece,
-        });
-      }
-
-      if (piece === "b" || piece === "B") {
-        board[rowIndex].push({
-          type: "bishop",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "B" ? "white" : "black",
-          settings: {},
-          notation: "B",
-          fen: piece,
-        });
-      }
-
-      if (piece === "r" || piece === "R") {
-        board[rowIndex].push({
-          type: "rook",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "R" ? "white" : "black",
-          settings: {},
-          notation: "R",
-          fen: piece,
-        });
-      }
-
-      if (piece === "q" || piece === "Q") {
-        board[rowIndex].push({
-          type: "queen",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "Q" ? "white" : "black",
-          settings: {},
-          notation: "Q",
-          fen: piece,
-        });
-      }
-
-      if (piece === "k" || piece === "K") {
-        board[rowIndex].push({
-          type: "king",
-          position: { row: rowIndex, column: columnIndex },
-          color: piece === "K" ? "white" : "black",
-          settings: {},
-          notation: "K",
-          fen: piece,
-        });
-      }
-
-      if (piece === null) {
-        board[rowIndex].push({
-          type: "empty",
-          position: { row: rowIndex, column: columnIndex },
-          color: null,
-          settings: {},
-          notation: "",
-          fen: piece,
-        });
-      }
-    });
-  });
-
-  return {
-    board: board,
+  const newBoard: Board = {
+    board,
     fen,
     //
-    currentPlayerTurn: currentPlayerTurn == "b" ? "black" : "white",
-    castlingRights,
-    enPassantTarget,
-    halfMoveClock,
-    fullMoveNumber,
+    currentPlayerTurn: currentPlayerTurn === "b" ? "black" : "white",
+    castlingRights: castlingRights === "-" ? "" : castlingRights,
+    enPassantTarget: enPassantTarget === "-" ? "" : enPassantTarget,
+    halfMoveClock: parseInt(halfMoveClock) || 0,
+    fullMoveNumber: parseInt(fullMoveNumber) || 1,
     //
     attackedSquares: {},
     checkedSquares: {},
     captureMask: {},
     pushMask: {},
+    pinnedSquares: {},
   };
+
+  computeBoardState(newBoard);
+
+  return newBoard;
 };
 
-const generateNewBoard = (board: Board, piece: PieceType, position: Position) => {
-  const newBoard = board.board.map((row) => [...row]);
-  const oldRow = piece.position.row;
-  const oldColumn = piece.position.column;
+const cloneBoard = (board: Board): Board => ({ ...board, board: board.board.map((row) => [...row]) });
 
-  let moveNotation = generateNotation(board, piece, position);
-  const newPiece = { ...piece, position: { row: position.row, column: position.column } };
-
-  // O-O
-  if (piece.type === "king" && position.column - oldColumn === 2) {
-    const rook = board.board[oldRow][7];
-    newBoard[oldRow][5] = { ...rook, position: { row: oldRow, column: 5 } };
-    newBoard[oldRow][7] = {
-      type: "empty",
-      position: { row: oldRow, column: 7 },
-      color: null,
-      settings: {},
-      notation: "",
-      fen: null,
-    };
-
-    moveNotation = "O-O";
-  }
-  // O-O-O
-  if (piece.type === "king" && oldColumn - position.column === 2) {
-    const rook = board.board[oldRow][0];
-    newBoard[oldRow][3] = rook;
-    newBoard[oldRow][0] = {
-      type: "empty",
-      position: { row: oldRow, column: 0 },
-      color: null,
-      settings: {},
-      notation: "",
-      fen: null,
-    };
-
-    moveNotation = "O-O-O";
-  }
-
-  const oldPiece = newBoard[position.row][position.column];
-  newBoard[position.row][position.column] = newPiece;
-  newBoard[oldRow][oldColumn] = {
-    type: "empty",
-    position: { row: oldRow, column: oldColumn },
-    color: null,
-    settings: {},
-    notation: "",
-    fen: null,
+const applyMove = (board: Board, piece: PieceType, move: Move): UndoRecord => {
+  const undo: UndoRecord = {
+    squares: [],
+    //
+    currentPlayerTurn: board.currentPlayerTurn,
+    castlingRights: board.castlingRights,
+    enPassantTarget: board.enPassantTarget,
+    halfMoveClock: board.halfMoveClock,
+    fullMoveNumber: board.fullMoveNumber,
+    //
+    attackedSquares: board.attackedSquares,
+    checkedSquares: board.checkedSquares,
+    captureMask: board.captureMask,
+    pushMask: board.pushMask,
+    pinnedSquares: board.pinnedSquares,
   };
 
-  return { newBoard, newPiece, moveNotation, oldPiece };
+  const from = piece.position;
+  const write = (row: number, column: number, value: PieceType) => {
+    undo.squares.push({ row, column, piece: board.board[row][column] });
+    board.board[row][column] = value;
+  };
+
+  const isCapture = board.board[move.row][move.column].type !== "empty" || !!move.enPassant;
+
+  if (move.castle) {
+    const rookColumn = move.castle === "K" ? 7 : 0;
+    const rookTarget = move.castle === "K" ? 5 : 3;
+    const rook = board.board[from.row][rookColumn];
+
+    write(from.row, rookTarget, { ...rook, position: { row: from.row, column: rookTarget } });
+    write(from.row, rookColumn, emptySquare(from.row, rookColumn));
+  }
+
+  if (move.enPassant) write(from.row, move.column, emptySquare(from.row, move.column));
+
+  write(move.row, move.column, createPiece(move.promotion ?? piece.type, piece.color!, move.row, move.column));
+  write(from.row, from.column, emptySquare(from.row, from.column));
+
+  let castlingRights = board.castlingRights;
+  if (piece.type === "king") {
+    castlingRights = piece.color === "white" ? castlingRights.replace(/[KQ]/g, "") : castlingRights.replace(/[kq]/g, "");
+  }
+  for (const square of [`${from.row},${from.column}`, `${move.row},${move.column}`]) {
+    const right = castlingRightBySquare[square];
+    if (right) castlingRights = castlingRights.replace(right, "");
+  }
+
+  board.castlingRights = castlingRights;
+  board.enPassantTarget =
+    piece.type === "pawn" && Math.abs(move.row - from.row) === 2 ? boardNotation[(move.row + from.row) / 2][from.column] : "";
+  board.halfMoveClock = piece.type === "pawn" || isCapture ? 0 : board.halfMoveClock + 1;
+  board.fullMoveNumber = board.currentPlayerTurn === "black" ? board.fullMoveNumber + 1 : board.fullMoveNumber;
+  board.currentPlayerTurn = board.currentPlayerTurn === "white" ? "black" : "white";
+
+  return undo;
+};
+
+const undoMove = (board: Board, undo: UndoRecord) => {
+  for (let i = undo.squares.length - 1; i >= 0; i--) {
+    const { row, column, piece } = undo.squares[i];
+    board.board[row][column] = piece;
+  }
+
+  board.currentPlayerTurn = undo.currentPlayerTurn;
+  board.castlingRights = undo.castlingRights;
+  board.enPassantTarget = undo.enPassantTarget;
+  board.halfMoveClock = undo.halfMoveClock;
+  board.fullMoveNumber = undo.fullMoveNumber;
+  board.attackedSquares = undo.attackedSquares;
+  board.checkedSquares = undo.checkedSquares;
+  board.captureMask = undo.captureMask;
+  board.pushMask = undo.pushMask;
+  board.pinnedSquares = undo.pinnedSquares;
 };
 
 const generateFen = (board: Board) => {
   let fen = "";
-  let emptySpaces = 0;
 
-  // Position
   for (const row of board.board) {
+    let emptySpaces = 0;
+
     for (const piece of row) {
       if (piece.type === "empty") {
         emptySpaces++;
@@ -203,177 +211,112 @@ const generateFen = (board: Board) => {
       fen += piece.fen;
     }
 
-    if (emptySpaces > 0) {
-      fen += emptySpaces;
-      emptySpaces = 0;
-    }
-
+    if (emptySpaces > 0) fen += emptySpaces;
     if (row !== board.board[board.board.length - 1]) fen += "/";
   }
 
-  fen += " ";
-
-  // Current Player Turn
-  fen += board.currentPlayerTurn === "white" ? "w" : "b";
-  fen += " ";
-
-  // Castling Rights
-  fen += board.castlingRights.length > 0 ? board.castlingRights : "-";
-  fen += " ";
-
-  // En Passant
-  fen += board.enPassantTarget.length > 0 ? board.enPassantTarget : "-";
-  fen += " ";
-
-  // Half Move Clock
-  fen += board.halfMoveClock.toString();
-  fen += " ";
-
-  // Full Move Number
-  fen += board.fullMoveNumber.toString();
+  fen += ` ${board.currentPlayerTurn === "white" ? "w" : "b"}`;
+  fen += ` ${board.castlingRights.length > 0 ? board.castlingRights : "-"}`;
+  fen += ` ${board.enPassantTarget.length > 0 ? board.enPassantTarget : "-"}`;
+  fen += ` ${board.halfMoveClock}`;
+  fen += ` ${board.fullMoveNumber}`;
 
   return fen;
 };
 
-const generateNotation = (board: Board, movedPiece: PieceType, toPositon: Position) => {
-  let move = movedPiece.notation;
+const generateNotation = (board: Board, movedPiece: PieceType, move: Move) => {
+  if (move.castle === "K") return "O-O";
+  if (move.castle === "Q") return "O-O-O";
 
-  const pieceOnPosition = board.board[toPositon.row][toPositon.column];
+  const isCapture = board.board[move.row][move.column].type !== "empty" || !!move.enPassant;
+  const square = boardNotation[movedPiece.position.row][movedPiece.position.column];
+  let notation = movedPiece.notation;
 
-  if (pieceOnPosition.type !== "empty" && movedPiece.type !== "pawn") move += "x";
-  if (pieceOnPosition.type !== "empty" && movedPiece.type === "pawn") {
-    move += `${boardNotation[movedPiece.position.row][movedPiece.position.column].split("")[0]}x`;
+  if (movedPiece.type === "pawn") {
+    if (isCapture) notation += square[0];
+  } else {
+    const rivals: PieceType[] = [];
+    for (const row of board.board) {
+      for (const piece of row) {
+        if (piece.type !== movedPiece.type || piece.color !== movedPiece.color) continue;
+        if (piece.position.row === movedPiece.position.row && piece.position.column === movedPiece.position.column) continue;
+        if (calculateLegalMoves(board, piece).some((m) => m.row === move.row && m.column === move.column)) rivals.push(piece);
+      }
+    }
+
+    if (rivals.length > 0) {
+      if (!rivals.some((piece) => piece.position.column === movedPiece.position.column)) notation += square[0];
+      else if (!rivals.some((piece) => piece.position.row === movedPiece.position.row)) notation += square[1];
+      else notation += square;
+    }
   }
 
-  move += boardNotation[toPositon.row][toPositon.column];
+  if (isCapture) notation += "x";
+  notation += boardNotation[move.row][move.column];
+  if (move.promotion) notation += `=${notationByType[move.promotion]}`;
 
-  return move;
-};
-
-const handleCastlingRights = (board: Board, piece: PieceType, oldPosition: Position) => {
-  let castlingRights = board.castlingRights;
-
-  // King
-  if (piece.type === "king" && board.currentPlayerTurn === "white") {
-    castlingRights = castlingRights.replace("K", "").replace("Q", "");
-  }
-  if (piece.type === "king" && board.currentPlayerTurn === "black") {
-    castlingRights = castlingRights.replace("k", "").replace("q", "");
-  }
-
-  // Rook
-  if (piece.type === "rook" && board.currentPlayerTurn === "white") {
-    if (oldPosition.row === 7 && oldPosition.column === 7) castlingRights = castlingRights.replace("K", "");
-    if (oldPosition.row === 7 && oldPosition.column === 0) castlingRights = castlingRights.replace("Q", "");
-  }
-  if (piece.type === "rook" && board.currentPlayerTurn === "black") {
-    if (oldPosition.row === 0 && oldPosition.column === 7) castlingRights = castlingRights.replace("k", "");
-    if (oldPosition.row === 0 && oldPosition.column === 0) castlingRights = castlingRights.replace("q", "");
-  }
-
-  return castlingRights;
-};
-
-const handleEnPassantTarget = (board: Board, piece: PieceType, oldPosition: Position) => {
-  let enPassantTarget = "";
-
-  if (piece.type === "pawn" && board.currentPlayerTurn === "white") {
-    const movedSquares = oldPosition.row - piece.position.row;
-
-    if (movedSquares == 2) enPassantTarget = `${boardNotation[oldPosition.row - 1][oldPosition.column]}`;
-  }
-
-  if (piece.type === "pawn" && board.currentPlayerTurn === "black") {
-    const movedSquares = piece.position.row - oldPosition.row;
-
-    if (movedSquares == 2) enPassantTarget = `${boardNotation[oldPosition.row + 1][oldPosition.column]}`;
-  }
-
-  return enPassantTarget;
+  return notation;
 };
 
 const generateAttackedSquares = (board: Board) => {
-  const myKingRow = board.board.find((row) => row.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn));
-  if (!myKingRow) return {};
-  const myKing = myKingRow.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn);
+  const myKing = findKing(board, board.currentPlayerTurn);
+  if (!myKing) return {};
 
-  // Remove current king
-  board.board[myKing!.position.row][myKing!.position.column] = {
-    type: "empty",
-    position: myKing!.position,
-    color: null,
-    settings: {},
-    notation: "",
-    fen: null,
-  };
+  // Sliders have to see through the king, or it looks safe stepping back along the attack ray
+  const kingSquare = myKing.position;
+  board.board[kingSquare.row][kingSquare.column] = emptySquare(kingSquare.row, kingSquare.column);
 
   const attackedSquares: Record<string, Position> = {};
+  const mark = (row: number, column: number) => {
+    if (row < 0 || row > 7 || column < 0 || column > 7) return;
+    attackedSquares[boardNotation[row][column]] = { row, column };
+  };
+
   for (const row of board.board) {
     for (const piece of row) {
       if (piece.type === "empty") continue;
       if (piece.color === board.currentPlayerTurn) continue;
 
       if (piece.type === "pawn") {
-        if (piece.color === "white") {
-          attackedSquares[`${boardNotation[piece.position.row - 1][piece.position.column + 1]}`] = {
-            row: piece.position.row - 1,
-            column: piece.position.column + 1,
-          };
-          attackedSquares[`${boardNotation[piece.position.row - 1][piece.position.column - 1]}`] = {
-            row: piece.position.row - 1,
-            column: piece.position.column - 1,
-          };
-        } else {
-          attackedSquares[`${boardNotation[piece.position.row + 1][piece.position.column + 1]}`] = {
-            row: piece.position.row + 1,
-            column: piece.position.column + 1,
-          };
-          attackedSquares[`${boardNotation[piece.position.row + 1][piece.position.column - 1]}`] = {
-            row: piece.position.row + 1,
-            column: piece.position.column - 1,
-          };
-        }
-
+        const direction = piece.color === "white" ? -1 : 1;
+        mark(piece.position.row + direction, piece.position.column - 1);
+        mark(piece.position.row + direction, piece.position.column + 1);
         continue;
       }
 
-      const moves = calculatePseudoLegalMoves(board, piece, true);
-      for (const move of moves) {
-        attackedSquares[`${boardNotation[move.row][move.column]}`] = move;
-      }
+      for (const move of calculateLegalMoves(board, piece, true)) mark(move.row, move.column);
     }
   }
 
-  delete attackedSquares["undefined"];
-  board.board[myKing!.position.row][myKing!.position.column] = myKing!;
+  board.board[kingSquare.row][kingSquare.column] = myKing;
 
   return attackedSquares;
 };
 
 const generateCheckedSquares = (board: Board) => {
-  const myKingRow = board.board.find((row) => row.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn));
-  if (!myKingRow) return {};
-  const myKing = myKingRow.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn);
+  const myKing = findKing(board, board.currentPlayerTurn);
+  if (!myKing) return {};
 
-  const pieceTypes = ["pawn", "knight", "bishop", "rook", "queen"];
-  const piece = {
-    type: "empty",
-    position: myKing!.position,
-    color: board.currentPlayerTurn === "white" ? "black" : "white",
-    settings: {},
-    notation: "",
-    fen: null,
-  };
-
+  const opponentColor = board.currentPlayerTurn === "white" ? "black" : "white";
   const checkedSquares: Record<string, Position> = {};
-  for (const pieceType of pieceTypes) {
-    if (pieceType === "pawn") continue;
 
-    const moves = calculatePseudoLegalMoves({ ...board }, { ...piece, type: pieceType }, true);
-    for (const move of moves) {
-      if (board.board[move.row][move.column].type === pieceType && board.board[move.row][move.column].color === piece.color) {
-        checkedSquares[`${boardNotation[move.row][move.column]}`] = move;
-      }
+  // Enemy pawns move towards us, so they check from one step against their own direction
+  const pawnRow = myKing.position.row + (board.currentPlayerTurn === "white" ? -1 : 1);
+  if (pawnRow >= 0 && pawnRow <= 7) {
+    for (const column of [myKing.position.column - 1, myKing.position.column + 1]) {
+      if (column < 0 || column > 7) continue;
+
+      const piece = board.board[pawnRow][column];
+      if (piece.type === "pawn" && piece.color === opponentColor) checkedSquares[boardNotation[pawnRow][column]] = { row: pawnRow, column };
+    }
+  }
+
+  // Everything else: leave the king square as that piece type and see what we land on
+  const probe = { ...myKing, color: opponentColor };
+  for (const pieceType of ["knight", "bishop", "rook", "queen"]) {
+    for (const move of calculateLegalMoves(board, { ...probe, type: pieceType }, true)) {
+      const piece = board.board[move.row][move.column];
+      if (piece.type === pieceType && piece.color === opponentColor) checkedSquares[boardNotation[move.row][move.column]] = move;
     }
   }
 
@@ -381,110 +324,169 @@ const generateCheckedSquares = (board: Board) => {
 };
 
 const generateCaptureAndPushMask = (board: Board, checkedSquares: Record<string, Position>) => {
-  if (Object.keys(checkedSquares).length != 1) return { captureMask: {}, pushMask: {} };
-
-  let captureMask: Record<string, Position> = {};
+  const captureMask: Record<string, Position> = {};
   const pushMask: Record<string, Position> = {};
 
-  captureMask = { ...checkedSquares };
+  if (Object.keys(checkedSquares).length !== 1) return { captureMask, pushMask };
 
-  const moveFrom = Object.keys(captureMask)[0];
-  let rowCheck = 0;
-  let columnCheck = 0;
+  const checkerSquare = Object.values(checkedSquares)[0];
+  Object.assign(captureMask, checkedSquares);
 
-  for (const row of boardNotation) {
-    if (row.includes(moveFrom)) {
-      columnCheck = row.indexOf(moveFrom);
-      rowCheck = boardNotation.indexOf(row);
-    }
-  }
+  const pieceGivingCheck = board.board[checkerSquare.row][checkerSquare.column];
+  if (pieceGivingCheck.type === "pawn" || pieceGivingCheck.type === "knight") return { captureMask, pushMask };
 
-  const pieceGivingCheck = board.board[rowCheck][columnCheck];
+  const myKing = findKing(board, board.currentPlayerTurn);
+  if (!myKing) return { captureMask, pushMask };
 
-  // Not a sliding piece, only capture mask
-  if (pieceGivingCheck.type == "pawn" || pieceGivingCheck.type == "knight") return { captureMask, pushMask };
-
-  const myKingRow = board.board.find((row) => row.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn));
-  if (!myKingRow) return { captureMask, pushMask };
-  const myKing = myKingRow.find((piece) => piece.type === "king" && piece.color === board.currentPlayerTurn);
-
-  const isLineAttack = (king: Position, attacker: Position): boolean => {
-    const dr = attacker.row - king.row;
-    const dc = attacker.column - king.column;
-    return (
-      dr === 0 || // mesma file
-      dc === 0 || // mesmo rank
-      Math.abs(dr) === Math.abs(dc) // diagonal
-    );
-  };
-  const squaresBetween = (king: Position, attacker: Position): Position[] => {
-    if (!isLineAttack(king, attacker)) return [];
-
-    const dr = attacker.row - king.row;
-    const dc = attacker.column - king.column;
-    const stepRow = dr === 0 ? 0 : dr / Math.abs(dr);
-    const stepCol = dc === 0 ? 0 : dc / Math.abs(dc);
-
-    const result: Position[] = [];
-    let r = king.row + stepRow;
-    let c = king.column + stepCol;
-
-    while (r !== attacker.row || c !== attacker.column) {
-      result.push({ row: r, column: c });
-      r += stepRow;
-      c += stepCol;
-    }
-
-    return result;
-  };
-
-  const betweenSquares = squaresBetween(myKing!.position, pieceGivingCheck.position);
-  for (const move of betweenSquares) {
-    const notation = boardNotation[move.row][move.column];
-    pushMask[notation] = move;
+  for (const square of squaresBetween(myKing.position, checkerSquare)) {
+    pushMask[boardNotation[square.row][square.column]] = square;
   }
 
   return { captureMask, pushMask };
 };
 
-//
-const getMoveFromStockfish = (move: string, board: Board) => {
-  const moveFrom = move.substring(0, 2);
-  const moveTo = move.substring(2, 4);
+const generatePinnedSquares = (board: Board) => {
+  const myKing = findKing(board, board.currentPlayerTurn);
+  if (!myKing) return {};
 
-  let rowFrom = 0;
-  let columnFrom = 0;
-  let rowTo = 0;
-  let columnTo = 0;
+  const opponentColor = board.currentPlayerTurn === "white" ? "black" : "white";
+  const directions = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ];
 
-  for (const row of boardNotation) {
-    if (row.includes(moveFrom)) {
-      columnFrom = row.indexOf(moveFrom);
-      rowFrom = boardNotation.indexOf(row);
-    }
+  const pinnedSquares: Record<string, Position[]> = {};
 
-    if (row.includes(moveTo)) {
-      columnTo = row.indexOf(moveTo);
-      rowTo = boardNotation.indexOf(row);
+  for (const [stepRow, stepColumn] of directions) {
+    const isDiagonal = stepRow !== 0 && stepColumn !== 0;
+
+    let row = myKing.position.row + stepRow;
+    let column = myKing.position.column + stepColumn;
+    let candidate: PieceType | undefined;
+
+    while (row >= 0 && row <= 7 && column >= 0 && column <= 7) {
+      const piece = board.board[row][column];
+
+      if (piece.type !== "empty") {
+        // The first blocker has to be ours and the piece behind it a slider running along this ray
+        if (!candidate) {
+          if (piece.color !== board.currentPlayerTurn) break;
+          candidate = piece;
+        } else {
+          const slides = piece.type === "queen" || piece.type === (isDiagonal ? "bishop" : "rook");
+          if (piece.color === opponentColor && slides) {
+            const ray = squaresBetween(myKing.position, { row, column });
+            ray.push({ row, column });
+            pinnedSquares[boardNotation[candidate.position.row][candidate.position.column]] = ray;
+          }
+
+          break;
+        }
+      }
+
+      row += stepRow;
+      column += stepColumn;
     }
   }
 
-  const selectedPiece = board.board[rowFrom][columnFrom];
-  const position = { row: rowTo, column: columnTo };
+  return pinnedSquares;
+};
 
-  return { selectedPiece: { piece: selectedPiece }, position, oldRow: rowFrom, oldColumn: columnFrom };
+const computeBoardState = (board: Board, includeFen: boolean = true) => {
+  board.pinnedSquares = generatePinnedSquares(board);
+  board.attackedSquares = generateAttackedSquares(board);
+  board.checkedSquares = generateCheckedSquares(board);
+
+  const { captureMask, pushMask } = generateCaptureAndPushMask(board, board.checkedSquares);
+  board.captureMask = captureMask;
+  board.pushMask = pushMask;
+  if (includeFen) board.fen = generateFen(board);
+
+  return board;
+};
+
+const hasInsufficientMaterial = (board: Board) => {
+  const minorPieces: PieceType[] = [];
+
+  for (const row of board.board) {
+    for (const piece of row) {
+      if (piece.type === "empty" || piece.type === "king") continue;
+      if (piece.type === "pawn" || piece.type === "rook" || piece.type === "queen") return false;
+
+      minorPieces.push(piece);
+    }
+  }
+
+  if (minorPieces.length <= 1) return true;
+  if (minorPieces.length > 2 || minorPieces.some((piece) => piece.type === "knight")) return false;
+
+  // Two lone bishops only draw when they share a square colour
+  const [first, second] = minorPieces;
+  return (first.position.row + first.position.column) % 2 === (second.position.row + second.position.column) % 2;
+};
+
+const getGameResult = (board: Board, positionHistory: string[] = []): GameResult => {
+  const opponentColor = board.currentPlayerTurn === "white" ? "black" : "white";
+
+  if (generateAllLegalMoves(board).length === 0) {
+    if (Object.keys(board.checkedSquares).length > 0) return { over: true, reason: "checkmate", winner: opponentColor };
+    return { over: true, reason: "stalemate", winner: null };
+  }
+
+  if (board.halfMoveClock >= 100) return { over: true, reason: "fifty move rule", winner: null };
+  if (hasInsufficientMaterial(board)) return { over: true, reason: "insufficient material", winner: null };
+
+  const currentPosition = board.fen.split(" ").slice(0, 4).join(" ");
+  if (positionHistory.filter((position) => position === currentPosition).length >= 3) {
+    return { over: true, reason: "threefold repetition", winner: null };
+  }
+
+  return { over: false, reason: "", winner: null };
+};
+
+const positionFromNotation = (notation: string): Position => ({
+  row: 8 - parseInt(notation[1]),
+  column: notation.charCodeAt(0) - 97,
+});
+
+const getMoveFromStockfish = (move: string, board: Board) => {
+  const from = positionFromNotation(move.substring(0, 2));
+  const to = positionFromNotation(move.substring(2, 4));
+
+  const selectedPiece = board.board[from.row][from.column];
+  const promotion = move.length > 4 ? typeByFen[move[4]] : undefined;
+
+  const position = calculateLegalMoves(board, selectedPiece).find(
+    (m) => m.row === to.row && m.column === to.column && (!promotion || m.promotion === promotion)
+  );
+
+  return { selectedPiece: { piece: selectedPiece }, position, oldRow: from.row, oldColumn: from.column };
 };
 
 export {
   buildBoard,
-  generateNewBoard,
+  cloneBoard,
+  applyMove,
+  undoMove,
   generateFen,
   generateNotation,
-  handleCastlingRights,
-  handleEnPassantTarget,
   generateAttackedSquares,
   generateCheckedSquares,
   generateCaptureAndPushMask,
+  generatePinnedSquares,
+  computeBoardState,
+  getGameResult,
   getMoveFromStockfish,
+  positionFromNotation,
+  findKing,
+  emptySquare,
+  createPiece,
+  squaresBetween,
   boardNotation,
 };

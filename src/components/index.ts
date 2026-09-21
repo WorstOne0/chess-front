@@ -1,5 +1,7 @@
 // Global
 import Modal from "./modal";
+import Promotion from "./promotion";
+import GameOver from "./game_over";
 import SideBoard from "./side_board";
 import Board from "./board";
 import Cell from "./cell";
@@ -12,6 +14,8 @@ import { Card, CardHeader, CardFooter, CardTitle, CardAction, CardDescription, C
 export {
   // Global
   Modal,
+  Promotion,
+  GameOver,
   SideBoard,
   Board,
   Cell,

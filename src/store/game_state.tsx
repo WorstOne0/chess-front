@@ -3,19 +3,17 @@
 import { create } from "zustand";
 import axiosInstance from "@/services/axios";
 //
-import { Board, PieceType, Position, SelectedPiece } from "@/utils/chess_types";
+import { Board, GameResult, Move, PieceType, Position, SelectedPiece } from "@/utils/chess_types";
 import {
   buildBoard,
-  generateFen,
-  generateNewBoard,
-  handleCastlingRights,
-  handleEnPassantTarget,
-  generateAttackedSquares,
+  cloneBoard,
+  applyMove,
+  computeBoardState,
+  generateNotation,
+  getGameResult,
   getMoveFromStockfish,
-  generateCheckedSquares,
-  generateCaptureAndPushMask,
 } from "@/utils/board";
-import { calculatePseudoLegalMoves } from "@/utils/moves";
+import { calculateLegalMoves } from "@/utils/moves";
 
 type GameStateStore = {
   board: Board;
@@ -24,147 +22,137 @@ type GameStateStore = {
   //
   selectedPiece?: SelectedPiece;
   onlySelectdPiece: boolean;
+  pendingPromotion?: { piece: PieceType; moves: Move[] };
   //
   previousMoves: string[];
+  positionHistory: string[];
+  gameResult: GameResult;
   evaluation: number;
   capturedPieces: PieceType[];
   //
   selectPiece: (piece: PieceType) => void;
   makeMove: (position: Position) => { sound: string };
+  choosePromotion: (promotion: string) => { sound: string };
   makeBotMove: () => Promise<{ sound: string }>;
 };
 
-const useGameState = create<GameStateStore>((set) => ({
-  board: buildBoard({ fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" }),
-  player: "white",
-  isSinglePlayer: true,
-  //
-  selectedPiece: undefined,
-  onlySelectdPiece: false,
-  //
-  previousMoves: [],
-  evaluation: 0,
-  capturedPieces: [],
-  //
-  selectPiece: (piece: PieceType) => {
-    const { board, selectedPiece, player, isSinglePlayer } = useGameState.getState();
+const startingBoard = buildBoard({ fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1" });
 
-    if (piece.type !== "empty" && piece.color !== board.currentPlayerTurn) return;
-    if (!isSinglePlayer && piece.color !== player) return;
-    if (selectedPiece?.piece != piece) set({ onlySelectdPiece: false });
+// Castling rights and the en passant square are part of a repetition, the clocks are not
+const repetitionKey = (board: Board) => board.fen.split(" ").slice(0, 4).join(" ");
 
-    const validMoves = calculatePseudoLegalMoves(board, piece);
+const useGameState = create<GameStateStore>((set) => {
+  const commitMove = (piece: PieceType, move: Move) => {
+    const { board, previousMoves, positionHistory, capturedPieces } = useGameState.getState();
 
-    return set({ selectedPiece: { piece, validMoves: validMoves } });
-  },
-  makeMove: (position: Position) => {
-    const { selectedPiece, board, onlySelectdPiece, previousMoves, isSinglePlayer, makeBotMove, capturedPieces } = useGameState.getState();
+    const notation = generateNotation(board, piece, move);
+    const captured = move.enPassant ? board.board[piece.position.row][move.column] : board.board[move.row][move.column];
 
-    if (!selectedPiece) return { sound: "" };
+    const nextBoard = cloneBoard(board);
+    applyMove(nextBoard, piece, move);
+    computeBoardState(nextBoard);
 
-    if (selectedPiece.piece.position.row === position.row && selectedPiece.piece.position.column === position.column) {
-      if (!onlySelectdPiece) set({ onlySelectdPiece: true });
-      else set({ selectedPiece: undefined });
-
-      return { sound: "" };
-    }
-
-    const isValidMove = selectedPiece.validMoves.some((move) => move.row === position.row && move.column === position.column);
-    if (!isValidMove) return { sound: "" };
-
-    const oldRow = selectedPiece.piece.position.row;
-    const oldColumn = selectedPiece.piece.position.column;
-    const { newBoard, newPiece, moveNotation, oldPiece } = generateNewBoard(board, selectedPiece.piece, position);
-
-    const castlingRights = handleCastlingRights(board, newPiece, { row: oldRow, column: oldColumn });
-    const enPassantTarget = handleEnPassantTarget(board, newPiece, { row: oldRow, column: oldColumn });
-
-    const updatedBoard = {
-      board: newBoard,
-      fen: "",
-      //
-      currentPlayerTurn: board.currentPlayerTurn === "white" ? "black" : "white",
-      castlingRights,
-      enPassantTarget,
-      halfMoveClock: board.halfMoveClock,
-      fullMoveNumber: board.currentPlayerTurn === "black" ? board.fullMoveNumber + 1 : board.fullMoveNumber,
-      //
-      attackedSquares: {},
-      checkedSquares: {},
-      captureMask: {},
-      pushMask: {},
-    };
-
-    const fen = generateFen(updatedBoard);
-    const attackedSquares = generateAttackedSquares(updatedBoard);
-    const checkedSquares = generateCheckedSquares(updatedBoard);
-    const { captureMask, pushMask } = generateCaptureAndPushMask(updatedBoard, checkedSquares);
+    const nextHistory = [...positionHistory, repetitionKey(nextBoard)];
+    const gameResult = getGameResult(nextBoard, nextHistory);
+    const isCheck = Object.keys(nextBoard.checkedSquares).length > 0;
 
     set({
-      board: { ...updatedBoard, fen, attackedSquares, checkedSquares, captureMask, pushMask },
+      board: nextBoard,
       selectedPiece: undefined,
-      previousMoves: [...previousMoves, `${moveNotation}${Object.entries(checkedSquares).length ? "+" : ""}`],
-      capturedPieces: [...capturedPieces, oldPiece],
+      onlySelectdPiece: false,
+      pendingPromotion: undefined,
+      previousMoves: [...previousMoves, `${notation}${gameResult.reason === "checkmate" ? "#" : isCheck ? "+" : ""}`],
+      positionHistory: nextHistory,
+      capturedPieces: captured.type === "empty" ? capturedPieces : [...capturedPieces, captured],
+      gameResult,
     });
 
     let sound = "move-self.mp3";
-    if (moveNotation.includes("x")) sound = "capture.mp3";
-    if (moveNotation === "O-O" || moveNotation === "O-O-O") sound = "castle.mp3";
-    if (Object.entries(checkedSquares).length) sound = "move-check.mp3";
-    if (moveNotation.includes("=")) sound = "promote.mp3";
-
-    if (!isSinglePlayer) makeBotMove();
+    if (notation.includes("x")) sound = "capture.mp3";
+    if (move.castle) sound = "castle.mp3";
+    if (move.promotion) sound = "promote.mp3";
+    if (isCheck) sound = "move-check.mp3";
 
     return { sound };
-  },
-  makeBotMove: async () => {
-    const { board, previousMoves } = useGameState.getState();
+  };
 
-    const response = await axiosInstance.get(`https://stockfish.online/api/s/v2.php?fen=${board.fen}&depth=12`);
-    const { evaluation, continuation, mate } = response.data;
+  return {
+    board: startingBoard,
+    player: "white",
+    isSinglePlayer: true,
+    //
+    selectedPiece: undefined,
+    onlySelectdPiece: false,
+    pendingPromotion: undefined,
+    //
+    previousMoves: [],
+    positionHistory: [repetitionKey(startingBoard)],
+    gameResult: { over: false, reason: "", winner: null },
+    evaluation: 0,
+    capturedPieces: [],
+    //
+    selectPiece: (piece: PieceType) => {
+      const { board, selectedPiece, player, isSinglePlayer, gameResult, pendingPromotion } = useGameState.getState();
 
-    const move = continuation.split(" ")[0];
-    const { selectedPiece, position, oldRow, oldColumn } = getMoveFromStockfish(move, board);
+      if (gameResult.over || pendingPromotion) return;
+      if (piece.type !== "empty" && piece.color !== board.currentPlayerTurn) return;
+      if (!isSinglePlayer && piece.color !== player) return;
+      if (selectedPiece?.piece != piece) set({ onlySelectdPiece: false });
 
-    const { newBoard, newPiece, moveNotation } = generateNewBoard(board, selectedPiece.piece, position);
+      return set({ selectedPiece: { piece, validMoves: calculateLegalMoves(board, piece) } });
+    },
+    makeMove: (position: Position) => {
+      const { selectedPiece, onlySelectdPiece, isSinglePlayer, pendingPromotion, makeBotMove } = useGameState.getState();
 
-    const castlingRights = handleCastlingRights(board, newPiece, { row: oldRow, column: oldColumn });
-    const enPassantTarget = handleEnPassantTarget(board, newPiece, { row: oldRow, column: oldColumn });
+      if (!selectedPiece || !position || pendingPromotion) return { sound: "" };
 
-    const updatedBoard = {
-      board: newBoard,
-      fen: "",
-      //
-      currentPlayerTurn: board.currentPlayerTurn === "white" ? "black" : "white",
-      castlingRights,
-      enPassantTarget,
-      halfMoveClock: board.halfMoveClock,
-      fullMoveNumber: board.currentPlayerTurn === "black" ? board.fullMoveNumber + 1 : board.fullMoveNumber,
-      //
-      attackedSquares: {},
-      checkedSquares: {},
-      captureMask: {},
-      pushMask: {},
-    };
+      if (selectedPiece.piece.position.row === position.row && selectedPiece.piece.position.column === position.column) {
+        if (!onlySelectdPiece) set({ onlySelectdPiece: true });
+        else set({ selectedPiece: undefined });
 
-    const fen = generateFen(updatedBoard);
-    const attackedSquares = generateAttackedSquares(updatedBoard);
-    const checkedSquares = generateCheckedSquares(updatedBoard);
+        return { sound: "" };
+      }
 
-    set({
-      board: { ...updatedBoard, fen, attackedSquares, checkedSquares },
-      selectedPiece: undefined,
-      previousMoves: [...previousMoves, moveNotation],
-    });
+      const moves = selectedPiece.validMoves.filter((move) => move.row === position.row && move.column === position.column);
+      if (moves.length === 0) return { sound: "" };
 
-    let sound = "move-self.mp3";
-    if (moveNotation.includes("x")) sound = "capture.mp3";
-    if (moveNotation === "O-O" || moveNotation === "O-O-O") sound = "castle.mp3";
-    if (Object.entries(checkedSquares).length) sound = "move-check.mp3";
-    if (moveNotation.includes("=")) sound = "promote.mp3";
+      // A promotion square carries one move per piece the pawn can become
+      if (moves[0].promotion) {
+        set({ pendingPromotion: { piece: selectedPiece.piece, moves } });
+        return { sound: "" };
+      }
 
-    return { sound };
-  },
-}));
+      const result = commitMove(selectedPiece.piece, moves[0]);
+      if (!isSinglePlayer) makeBotMove();
+
+      return result;
+    },
+    choosePromotion: (promotion: string) => {
+      const { pendingPromotion, isSinglePlayer, makeBotMove } = useGameState.getState();
+
+      const move = pendingPromotion?.moves.find((m) => m.promotion === promotion);
+      if (!pendingPromotion || !move) return { sound: "" };
+
+      const result = commitMove(pendingPromotion.piece, move);
+      if (!isSinglePlayer) makeBotMove();
+
+      return result;
+    },
+    makeBotMove: async () => {
+      const { board } = useGameState.getState();
+
+      const response = await axiosInstance.get(`https://stockfish.online/api/s/v2.php?fen=${board.fen}&depth=12`);
+      const { evaluation, continuation } = response.data;
+      if (!continuation) return { sound: "" };
+
+      const { selectedPiece, position } = getMoveFromStockfish(continuation.split(" ")[0], board);
+      if (!position) return { sound: "" };
+
+      set({ evaluation });
+
+      return commitMove(selectedPiece.piece, position);
+    },
+  };
+});
 
 export default useGameState;

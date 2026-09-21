@@ -16,6 +16,21 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Engine
+
+Move generation is legal-only, following [Peter Ellis Jones' article](https://peterellisjones.com/posts/generating-legal-chess-moves-efficiently/):
+king danger squares with the king lifted off the board, capture/push masks for check evasions, and pin rays
+resolved before generating. It lives in `src/utils/board.ts` (state, make/unmake) and `src/utils/moves.ts` (generation).
+
+```bash
+pnpm perft      # node counts against the standard positions, depth 4 by default
+pnpm perft 5    # deeper
+pnpm rules      # checkmate, stalemate, draws
+```
+
+`pnpm perft "<fen>" <depth>` prints a divide, which is how you find the move that diverges from a
+reference engine.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
