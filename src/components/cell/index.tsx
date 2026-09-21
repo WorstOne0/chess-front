@@ -10,7 +10,7 @@ import Piece from "../piece";
 
 export default function Cell({ row, column, piece }: Readonly<{ row: number; column: number; piece: PieceType }>) {
   const { setNodeRef } = useDroppable({ id: `cell_${row}_${column}`, data: { position: { row, column } } });
-  const { board, selectedPiece, makeMove } = useGameState((state) => state);
+  const { board, selectedPiece, selectPiece, clearSelection, makeMove } = useGameState((state) => state);
 
   const [moveSelfAudio] = useSound("/sound/move-self.mp3");
   const [captureAudio] = useSound("/sound/capture.mp3");
@@ -31,9 +31,13 @@ export default function Cell({ row, column, piece }: Readonly<{ row: number; col
     };
   };
 
+  const isSelectedPiece = selectedPiece && selectedPiece.piece.position.row === row && selectedPiece.piece.position.column === column;
+
   const handleClick = () => {
-    console.log("click");
-    if (selectedPiece == null) return;
+    const isTarget = selectedPiece?.validMoves.some((move) => move.row === row && move.column === column);
+
+    if (isSelectedPiece) return clearSelection();
+    if (!isTarget) return selectPiece(piece);
 
     const { sound } = makeMove({ row, column });
     if (!sound) return;
@@ -44,8 +48,6 @@ export default function Cell({ row, column, piece }: Readonly<{ row: number; col
     if (sound == "promote.mp3") promoteAudio();
     if (sound == "castle.mp3") castleAudio();
   };
-
-  const isSelectedPiece = selectedPiece && selectedPiece.piece.position.row === row && selectedPiece.piece.position.column === column;
   const isValidMove = () => {
     if (!selectedPiece) return false;
 

@@ -31,6 +31,7 @@ type GameStateStore = {
   capturedPieces: PieceType[];
   //
   selectPiece: (piece: PieceType) => void;
+  clearSelection: () => void;
   makeMove: (position: Position) => { sound: string };
   choosePromotion: (promotion: string) => { sound: string };
   makeBotMove: () => Promise<{ sound: string }>;
@@ -95,12 +96,16 @@ const useGameState = create<GameStateStore>((set) => {
       const { board, selectedPiece, player, isSinglePlayer, gameResult, pendingPromotion } = useGameState.getState();
 
       if (gameResult.over || pendingPromotion) return;
-      if (piece.type !== "empty" && piece.color !== board.currentPlayerTurn) return;
-      if (!isSinglePlayer && piece.color !== player) return;
+
+      // Anything you cannot move clears the selection, otherwise a drop on it would move the old piece there
+      const isOwnPiece = piece.type !== "empty" && piece.color === board.currentPlayerTurn;
+      if (!isOwnPiece || (isSinglePlayer && piece.color !== player)) return set({ selectedPiece: undefined, onlySelectdPiece: false });
+
       if (selectedPiece?.piece != piece) set({ onlySelectdPiece: false });
 
       return set({ selectedPiece: { piece, validMoves: calculateLegalMoves(board, piece) } });
     },
+    clearSelection: () => set({ selectedPiece: undefined, onlySelectdPiece: false }),
     makeMove: (position: Position) => {
       const { selectedPiece, onlySelectdPiece, isSinglePlayer, pendingPromotion, makeBotMove } = useGameState.getState();
 
@@ -123,7 +128,7 @@ const useGameState = create<GameStateStore>((set) => {
       }
 
       const result = commitMove(selectedPiece.piece, moves[0]);
-      if (!isSinglePlayer) makeBotMove();
+      if (isSinglePlayer) makeBotMove();
 
       return result;
     },
@@ -134,23 +139,28 @@ const useGameState = create<GameStateStore>((set) => {
       if (!pendingPromotion || !move) return { sound: "" };
 
       const result = commitMove(pendingPromotion.piece, move);
-      if (!isSinglePlayer) makeBotMove();
+      if (isSinglePlayer) makeBotMove();
 
       return result;
     },
+    // Nothing awaits this, so a failed request has to stay inside it rather than reject
     makeBotMove: async () => {
       const { board } = useGameState.getState();
 
-      const response = await axiosInstance.get(`https://stockfish.online/api/s/v2.php?fen=${board.fen}&depth=12`);
-      const { evaluation, continuation } = response.data;
-      if (!continuation) return { sound: "" };
+      try {
+        const response = await axiosInstance.get(`https://stockfish.online/api/s/v2.php?fen=${board.fen}&depth=12`);
+        const { evaluation, continuation } = response.data;
+        if (!continuation) return { sound: "" };
 
-      const { selectedPiece, position } = getMoveFromStockfish(continuation.split(" ")[0], board);
-      if (!position) return { sound: "" };
+        const { selectedPiece, position } = getMoveFromStockfish(continuation.split(" ")[0], board);
+        if (!position) return { sound: "" };
 
-      set({ evaluation });
+        set({ evaluation });
 
-      return commitMove(selectedPiece.piece, position);
+        return commitMove(selectedPiece.piece, position);
+      } catch {
+        return { sound: "" };
+      }
     },
   };
 });

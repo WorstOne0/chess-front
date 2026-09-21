@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { DndContext, DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragStartEvent, KeyboardSensor, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { snapCenterToCursor } from "@dnd-kit/modifiers";
 import useSound from "use-sound";
 // Hooks
@@ -31,6 +31,9 @@ export default function Board() {
   const [moveCheckAudio] = useSound("/sound/move-check.mp3");
   const [promoteAudio] = useSound("/sound/promote.mp3");
   const [castleAudio] = useSound("/sound/castle.mp3");
+
+  // Without a distance the sensor drags on pointerdown, so a plain click fires drag start, drag end and click
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor));
 
   useMount(() => {});
 
@@ -106,7 +109,7 @@ export default function Board() {
   };
 
   return (
-    <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd} modifiers={[snapCenterToCursor]}>
+    <DndContext id="chess-board" sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} modifiers={[snapCenterToCursor]}>
       <div className="h-full w-full flex flex-col bg-background select-none">
         {/* Opponent */}
         <div className="min-h-[6rem] h-[6rem] w-full flex justify-between items-center px-[2rem] mb-[1.5rem]">
