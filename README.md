@@ -7,7 +7,7 @@ One of two repositories:
 
 | Repository | Role |
 |---|---|
-| **chess_web** (this one) | The site — board, bot, room screens |
+| **chess-front** (this one) | The site — board, bot, room screens |
 | [chess-backend](https://github.com/WorstOne0/chess-backend) | Rooms server — Express + WebSocket, in memory |
 
 ---
