@@ -1,20 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Chess
 
-## Getting Started
+> Chess in the browser at [chess.kuuhaku.dev](https://chess.kuuhaku.dev): against Stockfish running on
+> the player's own machine, or against a friend in a private room.
 
-First, run the development server:
+One of two repositories:
+
+| Repository | Role |
+|---|---|
+| **chess_web** (this one) | The site — board, bot, room screens |
+| [chess-backend](https://github.com/WorstOne0/chess-backend) | Rooms server — Express + WebSocket, in memory |
+
+---
+
+## Features
+
+- **Bot in the browser** — Stockfish 19 lite (WASM) in a Web Worker, so there is no engine API to call
+  and no rate limit. Easy, Medium and Hard set its skill level and depth; it never answers in under
+  800 ms.
+- **Rooms** — create one, share it by link, QR code or 6-letter code, pick a side. The server keeps the
+  clocks; draw offers, resign and rematch (colours swap) go through it, and a reload takes the same seat
+  back.
+- **Board** — drag or click, premoves, right click to mark a square and right drag for arrows, legal
+  moves and the last move highlighted, a promotion picker, history to step back through, captured
+  pieces with the material difference.
+- **Results play on the kings** — a circle fills the square with the icon, then clears to a badge — and
+  the result card follows.
+- **Settings** — Charcoal and Blue themes, Studio and Immersive layouts, four boards, five piece sets,
+  coordinates and sound, all remembered.
+- Time controls from 1+1 to 15+10.
+
+---
+
+## Tech stack
+
+Next.js 16 (App Router, Turbopack, standalone output) · React 19 · TypeScript · Tailwind CSS 4 ·
+Zustand · next-themes · dnd-kit · use-sound · qrcode · Stockfish 19 (WASM)
+
+---
+
+## Getting started
+
+Requires Node 20.9+ and pnpm.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev                 # http://localhost:5000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Rooms also need [chess-backend](https://github.com/WorstOne0/chess-backend) running on `:5001`; the rest
+of the site works without it.
+
+`/game?fen=<FEN>` starts a computer game from any position, the quickest way to test an ending — a
+promotion, for example: `/game?fen=2r1k3/1P6/8/8/8/8/5PPP/6K1 w - - 0 1`.
+
+### Environment
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_ROOMS_URL` | chess-backend base url (defaults to `http://localhost:5001`) |
+
+It is **inlined at build time**. The Dockerfile passes `https://chess-api.kuuhaku.dev` as a build arg,
+so changing it needs a rebuild, not a restart.
+
+---
 
 ## Engine
 
@@ -31,21 +79,61 @@ pnpm rules      # checkmate, stalemate, draws
 `pnpm perft "<fen>" <depth>` prints a divide, which is how you find the move that diverges from a
 reference engine.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Stockfish only picks the bot's reply. Its UCI answer is matched against our own legal moves, so a move
+we consider illegal is dropped instead of played.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+---
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/
+    (home)/page.tsx       mode, difficulty, time control
+    game/                 page.tsx picks the layout; _components/ holds the board and the panels
+    room/create/          the server page creates the room and draws the QR code
+    room/join/            by code, link or QR
+  core/
+    controllers/          zustand — game (bot or room, premoves, clocks, history), room, settings
+    models/               types and option tables
+  components/             shared UI — settings modal, segmented control, buttons
+  hooks/                  use_room
+  services/               stockfish (Web Worker), rooms (one WebSocket per tab)
+  utils/                  board state, move generation, perft
+  styles/                 tokens → theme → base, utilities
+scripts/                  perft.ts, rules.ts
+public/                   logo, pieces/<set>/, sound, stockfish
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploy
 
-## Deploy on Vercel
+Docker, standalone output on port 5000:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+docker compose up -d --build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The container joins the external `nginx-proxy` network as `chess`. On the VPS, Nginx Proxy Manager
+forwards `chess.kuuhaku.dev` to `chess:5000` — a route set up by hand in its UI. The `VIRTUAL_*`
+variables in `docker-compose.yml` are only read by jwilder/nginx-proxy.
+
+---
+
+## Known limitations
+
+- Rooms trust the clients: the server checks whose turn it is, not whether the move is legal.
+- Rooms live in the server's memory, so a backend restart ends the games in progress.
+- Desktop only — drawn for 1440×900; below about 1200 px wide the side panels crowd the board.
+- Against the computer the player is always White.
+
+---
+
+## Credits
+
+- [Stockfish](https://stockfishchess.org), GPL-3.0, in the browser build from
+  [stockfish.js](https://github.com/nmrugg/stockfish.js) — `public/stockfish/`.
+- Piece sets from [lichess](https://github.com/lichess-org/lila/tree/master/public/piece): Modern
+  (Staunty), Bold (Cardinal) and Minimal (Fresca) by sadsnake1, CC BY-NC-SA 4.0; Classic (cburnett) by
+  Colin M.L. Burnett, GPLv2+. `docs/piece_sets.html` lists the other lichess sets with their licences.

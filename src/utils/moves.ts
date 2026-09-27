@@ -1,5 +1,5 @@
 import { boardNotation, emptySquare, generateCheckedSquares, positionFromNotation } from "./board";
-import { Board, Move, PieceType } from "./chess_types";
+import { Board, Move, PieceType } from "../core/models";
 
 const promotionTypes = ["queen", "rook", "bishop", "knight"];
 

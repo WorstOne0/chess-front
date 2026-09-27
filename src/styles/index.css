@@ -1,0 +1,6 @@
+/* Entry point, imported once by app/layout.tsx. Tailwind bundles these @imports itself. */
+@import "tailwindcss";
+@import "./tokens.css";
+@import "./theme.css";
+@import "./base.css";
+@import "./utilities.css";

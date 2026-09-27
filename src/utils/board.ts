@@ -1,4 +1,4 @@
-import { Board, GameResult, Move, PieceType, Position, UndoRecord } from "./chess_types";
+import { Board, GameResult, Move, PieceType, Position, UndoRecord } from "../core/models";
 import { calculateLegalMoves, generateAllLegalMoves } from "./moves";
 
 const boardNotation = [

@@ -1,5 +1,3 @@
-version: "3"
-
 services:
   app:
     build: .
@@ -7,6 +5,9 @@ services:
     restart: unless-stopped
     environment:
       - VIRTUAL_HOST=chess.kuuhaku.dev
+      - VIRTUAL_PORT=5000
+    expose:
+      - 5000
     networks:
       - nginx-proxy
 

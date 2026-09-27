@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["src/utils/**/*.ts", "scripts/**/*.ts"]
+  "include": ["src/utils/**/*.ts", "src/core/models/**/*.ts", "scripts/**/*.ts"]
 }

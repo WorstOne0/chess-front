@@ -1,0 +1,108 @@
+/* Tailwind's own palette is switched off: the only colours that exist are the roles below,
+   plus white and black for overlays and the QR code. `text-gray-500` does not compile. */
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* The result on the kings: a circle grows from the middle of the square, the win or loss icon shows
+     while it is full, then both clear to the king and its badge; only then the result fades in. */
+  --animate-result-circle: result-circle 1.5s cubic-bezier(0.3, 0.7, 0.4, 1) forwards;
+  --animate-result-icon: result-icon 1.5s ease-out forwards;
+  --animate-badge-pop: badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 1.35s both;
+  --animate-result-in: fade-in 0.35s ease-out 1.8s both;
+  --animate-result-card: rise-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) 1.8s both;
+
+  @keyframes result-circle {
+    0% {
+      scale: 0;
+    }
+    35%,
+    72% {
+      scale: 1;
+      opacity: 1;
+    }
+    100% {
+      scale: 1;
+      opacity: 0;
+    }
+  }
+
+  @keyframes result-icon {
+    0%,
+    28% {
+      opacity: 0;
+      scale: 0.5;
+    }
+    42%,
+    72% {
+      opacity: 1;
+      scale: 1;
+    }
+    100% {
+      opacity: 0;
+      scale: 1.15;
+    }
+  }
+
+  @keyframes badge-pop {
+    from {
+      scale: 0;
+    }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(1.6rem) scale(0.94);
+    }
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-nunito);
+
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-tile: var(--tile);
+  --color-line: var(--line);
+  --color-overlay: var(--overlay);
+  --color-title: var(--title);
+  --color-soft: var(--soft);
+  --color-meta: var(--meta);
+  --color-faint: var(--faint);
+  --color-action: var(--action);
+  --color-on-action: var(--on-action);
+  --color-accent: var(--accent);
+  --color-accent-on-action: var(--accent-on-action);
+  --color-square-light: var(--square-light);
+  --color-square-dark: var(--square-dark);
+  --color-board-edge: var(--board-edge);
+  --color-last-move: var(--last-move);
+  --color-move-mark: var(--move-mark);
+  --color-capture-mark: var(--capture-mark);
+  --color-premove: var(--premove);
+  --color-arrow: var(--arrow);
+  --color-marked: var(--marked);
+  --color-win: var(--win);
+  --color-loss: var(--loss);
+  --color-draw: var(--draw);
+
+  --radius-card: var(--card-radius);
+  --radius-control: var(--control-radius);
+
+  --shadow-raise: var(--raise-shadow);
+  --shadow-raise-lg: var(--raise-lg-shadow);
+  --shadow-frame: var(--frame-shadow);
+  --shadow-inset: var(--inset-shadow);
+  --shadow-action: var(--action-shadow);
+  --shadow-tile: var(--tile-shadow);
+  --shadow-square-glow: 0 0 1rem var(--board-edge), 0 0 1rem var(--board-glow);
+  --shadow-square-sunk: inset 1rem 1rem 2rem var(--board-edge), inset -1rem -1rem 2rem var(--board-glow);
+}

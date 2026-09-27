@@ -1,0 +1,153 @@
+/* Two layers: the palette holds values, the semantic layer holds roles. Markup reads roles only.
+   Charcoal is :root, so the page renders charcoal before next-themes runs; .blue re-points the roles. */
+:root {
+  /* Palette: charcoal. */
+  --charcoal-50: #f4f6fb;
+  --charcoal-200: #c6ccd8;
+  --charcoal-300: #9aa3b5;
+  --charcoal-400: #7f8797;
+  --charcoal-600: #292f39;
+  --charcoal-650: #262b34;
+  --charcoal-750: #1c2027;
+  --charcoal-800: #171a20;
+  --charcoal-850: #13161c;
+  --charcoal-900: #0b0d11;
+
+  /* Palette: blue. 500 the brand · 400/700 its light and dark shadow · 50–200 text on it. */
+  --blue-50: #dbe4f7;
+  --blue-100: #c3d0ef;
+  --blue-200: #aabde8;
+  --blue-400: #1554d8;
+  --blue-450: #1a4fc2;
+  --blue-500: #0e3fa3;
+  --blue-700: #092a6e;
+
+  /* Palette: purple, the logo's violet lightened. 400 for dots, rings and icons · 300 for text on blue. */
+  --purple-300: #c4b5fd;
+  --purple-400: #a78bfa;
+
+  /* Palette: results on the kings, kept muted so they sit with the wood rather than shout over it. */
+  --green-500: #5c9e6e;
+  --red-500: #c25b50;
+  --gray-500: #8c929c;
+
+  /* Palette: right-click drawings, chess.com's colours. */
+  --amber-arrow: #ffaa00;
+  --coral-mark: rgb(235 97 80 / 0.8);
+
+  /* Palette: boards. Two squares, the edge showing between the rounded squares, the glow around the light ones. */
+  --wood-light: #f0d9b5;
+  --wood-dark: #b58863;
+  --wood-edge: #826247;
+  --wood-glow: #e8ae7f;
+  --forest-light: #eeeed2;
+  --forest-dark: #769656;
+  --forest-edge: #4f6a3a;
+  --forest-glow: #b9cf8f;
+  --ocean-light: #dfe6f2;
+  --ocean-dark: #6f8fbf;
+  --ocean-edge: #4a6690;
+  --ocean-glow: #a9bfe3;
+  --slate-light: #dcdcdc;
+  --slate-dark: #7b7f88;
+  --slate-edge: #55585f;
+  --slate-glow: #b4b7be;
+
+  /* Palette: the move marks, Tailwind's blue-900 and red-900 the board was drawn with. */
+  --mark-blue: oklch(37.9% 0.146 265.522);
+  --mark-red: oklch(39.6% 0.141 25.723);
+
+  /* Semantic: surfaces. A tile is the dark raised block: avatars, chips, the logo. */
+  --background: var(--charcoal-800);
+  --surface: var(--charcoal-750);
+  --tile: var(--charcoal-750);
+  --line: var(--charcoal-650);
+  --overlay: rgb(6 8 12 / 0.6);
+
+  /* Semantic: text */
+  --title: var(--charcoal-50);
+  --soft: var(--charcoal-200);
+  --meta: var(--charcoal-300);
+  --faint: var(--charcoal-400);
+
+  /* Semantic: action and state */
+  --action: var(--blue-500);
+  --on-action: #ffffff;
+  --accent: var(--purple-400);
+  --accent-on-action: var(--purple-300);
+
+  /* Semantic: depth. Neumorphism: a dark shadow down-right and a light one up-left, from the same surface. */
+  --raise-shadow: 0.6rem 0.6rem 1.4rem var(--charcoal-900), -0.4rem -0.4rem 1.2rem var(--charcoal-600);
+  --raise-lg-shadow: 1.2rem 1.2rem 2.8rem var(--charcoal-900), -1rem -1rem 2.4rem var(--charcoal-600);
+  --frame-shadow: 1.6rem 1.6rem 3.4rem var(--charcoal-900), -1.2rem -1.2rem 2.8rem var(--charcoal-600);
+  --inset-shadow: inset 0.5rem 0.5rem 1.2rem var(--charcoal-900), inset -0.4rem -0.4rem 1rem var(--charcoal-600);
+  --action-shadow: var(--raise-shadow);
+  --tile-shadow: var(--raise-shadow);
+
+  /* Semantic: board marks and results, the same on every board */
+  --last-move: rgb(255 214 90 / 0.5);
+  --move-mark: var(--mark-blue);
+  --capture-mark: var(--mark-red);
+  --premove: color-mix(in oklab, var(--mark-blue) 45%, transparent);
+  --arrow: var(--amber-arrow);
+  --marked: var(--coral-mark);
+  --win: var(--green-500);
+  --loss: var(--red-500);
+  --draw: var(--gray-500);
+
+  /* Metrics */
+  --card-radius: 2.6rem;
+  --control-radius: 1.4rem;
+}
+
+.blue {
+  --background: var(--blue-500);
+  --surface: var(--blue-500);
+  --tile: var(--charcoal-850);
+  --line: var(--blue-450);
+
+  --soft: var(--blue-50);
+  --meta: var(--blue-100);
+  --faint: var(--blue-200);
+
+  /* On blue the roles flip: actions are near-black, the way blue actions sit on charcoal. */
+  --action: var(--charcoal-850);
+  --accent-on-action: var(--purple-400);
+
+  --raise-shadow: 0.6rem 0.6rem 1.4rem var(--blue-700), -0.6rem -0.6rem 1.4rem var(--blue-400);
+  --raise-lg-shadow: 1.2rem 1.2rem 2.8rem var(--blue-700), -1.2rem -1.2rem 2.8rem var(--blue-400);
+  --frame-shadow: 1.6rem 1.6rem 3.4rem var(--blue-700), -1.2rem -1.2rem 2.8rem var(--blue-400);
+  --inset-shadow: inset 0.5rem 0.5rem 1.2rem var(--blue-700), inset -0.5rem -0.5rem 1.2rem var(--blue-400);
+  --action-shadow: 0.6rem 0.6rem 1.4rem rgb(0 0 0 / 0.45), -0.3rem -0.3rem 1rem rgb(255 255 255 / 0.07);
+  --tile-shadow: var(--action-shadow);
+}
+
+/* Boards: markup sets data-board on the grid; the ids match BOARD_THEMES in core/models/settings.ts. */
+:root,
+[data-board="classic"] {
+  --square-light: var(--wood-light);
+  --square-dark: var(--wood-dark);
+  --board-edge: var(--wood-edge);
+  --board-glow: var(--wood-glow);
+}
+
+[data-board="forest"] {
+  --square-light: var(--forest-light);
+  --square-dark: var(--forest-dark);
+  --board-edge: var(--forest-edge);
+  --board-glow: var(--forest-glow);
+}
+
+[data-board="ocean"] {
+  --square-light: var(--ocean-light);
+  --square-dark: var(--ocean-dark);
+  --board-edge: var(--ocean-edge);
+  --board-glow: var(--ocean-glow);
+}
+
+[data-board="slate"] {
+  --square-light: var(--slate-light);
+  --square-dark: var(--slate-dark);
+  --board-edge: var(--slate-edge);
+  --board-glow: var(--slate-glow);
+}

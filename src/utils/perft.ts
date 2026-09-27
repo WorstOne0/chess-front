@@ -1,5 +1,5 @@
 import { applyMove, boardNotation, computeBoardState, undoMove } from "./board";
-import { Board, Move, PieceType } from "./chess_types";
+import { Board, Move, PieceType } from "../core/models";
 import { generateAllLegalMoves } from "./moves";
 
 const promotionFen: Record<string, string> = { queen: "q", rook: "r", bishop: "b", knight: "n" };
