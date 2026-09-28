@@ -4,7 +4,7 @@ Chess against a Stockfish bot or a friend in a room, served at chess.kuuhaku.dev
 Router, Turbopack), React 19, Tailwind 4, Zustand, dnd-kit. Move generation is our own; Stockfish only
 picks the bot's reply, and rooms run on `../chess_backend` (its own CLAUDE.md has the protocol).
 
-General code style and architecture live in `../../code_style/` (`next.md`); this file is only what
+General code style and architecture live in `../../general/code_style/` (`next.md`); this file is only what
 is specific to this app. The look is not design.md's: it follows the "Chess app – neumorphic UI"
 canvas (https://claude.ai/artifact/GoNQvvLrZcnuHqMRjR5ott) — soft dual shadows instead of hairlines,
 charcoal and blue themes, primary `#0e3fa3`, lavender `#a78bfa` for small details.
@@ -26,6 +26,7 @@ charcoal and blue themes, primary `#0e3fa3`, lavender `#a78bfa` for small detail
 src/
   app/
     layout.tsx  providers.tsx      server layout (metadata, Nunito); ThemeProvider inside <body>; settings rehydrate after mount
+    opengraph-image.tsx            the 1200×630 card link previews show, drawn with next/og at build time
     (home)/page.tsx                mode, difficulty and time control; Start game calls newGame, then goes to /game
     game/
       page.tsx  layout.tsx         the page picks studio_layout (B) or immersive_layout (C); the layout only holds the title
@@ -89,7 +90,7 @@ public/                            logo/, pieces/<set>/wK.svg … bP.svg, sound/
   moves, so a reply we consider illegal is dropped instead of played.
 - Docker ships the standalone output (`node server.js`, port 5000). The VPS runs Nginx Proxy Manager,
   set up by hand (chess.kuuhaku.dev → `chess:5000`); the `VIRTUAL_*` variables in docker-compose.yml
-  do nothing there. `../../pedro_luis_imoveis/INFRASTRUCTURE.md` has the server.
+  do nothing there. `../../general/vps/contabo.md` has the server.
 
 ## Known gaps
 
