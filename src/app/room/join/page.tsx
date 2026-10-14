@@ -148,7 +148,7 @@ export default function JoinRoomPage({ searchParams }: { searchParams: Promise<{
                   value={link}
                   onChange={(event) => setLink(event.target.value)}
                   onKeyDown={(event) => event.key === "Enter" && openLink()}
-                  placeholder="https://chess.kuuhaku.dev/room/join?code=…"
+                  placeholder="https://chess.disboard.dev/room/join?code=…"
                   className="min-w-0 flex-1 bg-transparent text-[1.5rem] font-bold outline-none placeholder:text-faint"
                 />
               </div>

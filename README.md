@@ -1,6 +1,6 @@
 # Chess
 
-> Chess in the browser at [chess.kuuhaku.dev](https://chess.kuuhaku.dev): against Stockfish running on
+> Chess in the browser at [chess.disboard.dev](https://chess.disboard.dev): against Stockfish running on
 > the player's own machine, or against a friend in a private room.
 
 One of two repositories:
@@ -59,7 +59,7 @@ promotion, for example: `/game?fen=2r1k3/1P6/8/8/8/8/5PPP/6K1 w - - 0 1`.
 |---|---|
 | `NEXT_PUBLIC_ROOMS_URL` | chess-backend base url (defaults to `http://localhost:5001`) |
 
-It is **inlined at build time**. The Dockerfile passes `https://chess-api.kuuhaku.dev` as a build arg,
+It is **inlined at build time**. The Dockerfile passes `https://chess-api.disboard.dev` as a build arg,
 so changing it needs a rebuild, not a restart.
 
 ---
@@ -116,7 +116,7 @@ docker compose up -d --build
 ```
 
 The container joins the external `nginx-proxy` network as `chess`. On the VPS, Nginx Proxy Manager
-forwards `chess.kuuhaku.dev` to `chess:5000` — a route set up by hand in its UI. The `VIRTUAL_*`
+forwards `chess.disboard.dev` to `chess:5000` — a route set up by hand in its UI. The `VIRTUAL_*`
 variables in `docker-compose.yml` are only read by jwilder/nginx-proxy.
 
 ---

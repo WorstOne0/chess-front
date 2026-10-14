@@ -4,7 +4,7 @@ services:
     container_name: chess
     restart: unless-stopped
     environment:
-      - VIRTUAL_HOST=chess.kuuhaku.dev
+      - VIRTUAL_HOST=chess.disboard.dev
       - VIRTUAL_PORT=5000
     expose:
       - 5000

@@ -1,6 +1,6 @@
 # chess_web
 
-Chess against a Stockfish bot or a friend in a room, served at chess.kuuhaku.dev. Next.js 16 (App
+Chess against a Stockfish bot or a friend in a room, served at chess.disboard.dev. Next.js 16 (App
 Router, Turbopack), React 19, Tailwind 4, Zustand, dnd-kit. Move generation is our own; Stockfish only
 picks the bot's reply, and rooms run on `../chess_backend` (its own CLAUDE.md has the protocol).
 
@@ -89,7 +89,7 @@ public/                            logo/, pieces/<set>/wK.svg … bP.svg, sound/
 - The engine answers in UCI (`e7e5`, `e7e8q`); `getMoveFromStockfish` maps that onto our own legal
   moves, so a reply we consider illegal is dropped instead of played.
 - Docker ships the standalone output (`node server.js`, port 5000). The VPS runs Nginx Proxy Manager,
-  set up by hand (chess.kuuhaku.dev → `chess:5000`); the `VIRTUAL_*` variables in docker-compose.yml
+  set up by hand (chess.disboard.dev → `chess:5000`); the `VIRTUAL_*` variables in docker-compose.yml
   do nothing there. `../../general/vps/contabo.md` has the server.
 
 ## Known gaps

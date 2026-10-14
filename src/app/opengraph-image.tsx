@@ -27,7 +27,7 @@ export default async function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", maxWidth: 680 }}>
-          <span style={{ fontSize: 30, color: "#a78bfa" }}>chess.kuuhaku.dev</span>
+          <span style={{ fontSize: 30, color: "#a78bfa" }}>chess.disboard.dev</span>
           <span style={{ fontSize: 104, fontWeight: 800, lineHeight: 1, marginTop: 18 }}>Chess</span>
           <span style={{ fontSize: 38, fontWeight: 600, lineHeight: 1.3, marginTop: 40 }}>
             Play Stockfish in your browser, or a friend in a private room

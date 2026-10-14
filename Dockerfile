@@ -14,7 +14,7 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 # Inlined into the bundle by the build, so it has to exist here and not only at runtime.
-ARG NEXT_PUBLIC_ROOMS_URL=https://chess-api.kuuhaku.dev
+ARG NEXT_PUBLIC_ROOMS_URL=https://chess-api.disboard.dev
 RUN pnpm build
 
 # ---- runtime -------------------------------------------------------------

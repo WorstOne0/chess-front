@@ -12,7 +12,7 @@ const DESCRIPTION = "Play chess against Stockfish in your browser, or against a 
 
 // Server component on purpose: "use client" here would silently drop metadata.
 export const metadata: Metadata = {
-  metadataBase: new URL("https://chess.kuuhaku.dev"),
+  metadataBase: new URL("https://chess.disboard.dev"),
   title: { default: "Chess", template: "%s · Chess" },
   description: DESCRIPTION,
   applicationName: "Chess",
